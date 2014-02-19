@@ -2768,6 +2768,9 @@ status_t SurfaceFlinger::onTransact(
             const int pid = ipc->getCallingPid();
             const int uid = ipc->getCallingUid();
             if ((uid != AID_GRAPHICS) &&
+#if defined(USE_MHEAP_SCREENSHOT) || defined(BOARD_EGL_NEEDS_LEGACY_FB)
+                  (uid != AID_SYSTEM) &&
+#endif
                     !PermissionCache::checkPermission(sAccessSurfaceFlinger, pid, uid)) {
                 ALOGE("Permission Denial: "
                         "can't access SurfaceFlinger pid=%d, uid=%d", pid, uid);
@@ -2905,6 +2908,9 @@ class GraphicProducerWrapper : public BBinder, public MessageHandler {
     uint32_t code;
     Parcel const* data;
     Parcel* reply;
+#ifdef STE_HARDWARE
+    Mutex mLock;
+#endif
 
     enum {
         MSG_API_CALL,
@@ -2917,6 +2923,9 @@ class GraphicProducerWrapper : public BBinder, public MessageHandler {
      */
     virtual status_t transact(uint32_t code,
             const Parcel& data, Parcel* reply, uint32_t flags) {
+#ifdef STE_HARDWARE
+        mLock.lock();
+#endif
         this->code = code;
         this->data = &data;
         this->reply = reply;
@@ -2929,6 +2938,9 @@ class GraphicProducerWrapper : public BBinder, public MessageHandler {
             looper->sendMessage(this, Message(MSG_API_CALL));
             barrier.wait();
         }
+#ifdef STE_HARDWARE
+        mLock.unlock();
+#endif
         return NO_ERROR;
     }
 
